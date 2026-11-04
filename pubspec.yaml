@@ -1,0 +1,17 @@
+name: double_feature
+description: Displays a version number. That is all it does. Please stop tapping it.
+version: 1.0.0
+repository: https://github.com/alexdlaird/double_feature
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

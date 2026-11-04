@@ -1,0 +1,62 @@
+name: Release
+
+run-name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Read release version
+        id: version
+        uses: alexdlaird/shipshape/read-version@v1
+        with:
+          version-file: pubspec.yaml
+          version-pattern: 's/^version: .*/version: ${VERSION}/'
+
+      - name: Pre-validate version is unreleased
+        uses: alexdlaird/shipshape/check-unreleased@v1
+        with:
+          version: ${{ steps.version.outputs.version }}
+
+      - name: Run repo validation
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: make validate-release VERSION="${VERSION}"
+
+      - name: Wait for the main push run to succeed
+        uses: alexdlaird/shipshape/wait-for-ci@v1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          sha: ${{ github.sha }}
+          branch: main
+          repo-slug: ${{ github.repository }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NOTES=$(awk -v heading="## [${VERSION}]" 'index($0, heading) == 1 { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md)
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes "$NOTES"
