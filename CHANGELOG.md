@@ -6,10 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased](https://github.com/alexdlaird/double_feature/compare/1.0.1...HEAD)
 
+- Madness takes its toll.
+
 ## [1.0.1](https://github.com/alexdlaird/double_feature/compare/1.0.0...1.0.1) - 2026-11-05
 
-- Madness takes its toll.
+- Time is fleeting.
 
 ## [1.0.0](https://github.com/alexdlaird/double_feature/releases/tag/1.0.0) - 2026-11-03
 
-- Time is fleeting.
+- It's astounding.
