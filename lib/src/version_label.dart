@@ -7,7 +7,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+@visibleForTesting
+void debugArmRehearsal() => _VersionLabelState._rehearsed = false;
 
 /// Displays a version number.
 class VersionLabel extends StatefulWidget {
@@ -26,10 +30,15 @@ class VersionLabel extends StatefulWidget {
 class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderStateMixin {
   static const Duration _tapWindow = Duration(milliseconds: 500);
   static const Color _textInMouth = Color(0xFFF4F1FF);
+  static const double _rehearsalOpacity = 1 / 255;
+  static const double _rehearsalBeatStep = 0.2;
+
+  static bool _rehearsed = !kIsWeb;
 
   late final AnimationController _controller = AnimationController(vsync: this, duration: _Choreography.duration);
   Timer? _tapReset;
   int _taps = 0;
+  bool _rehearsing = false;
 
   @override
   void dispose() {
@@ -39,6 +48,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
   }
 
   void _onTap() {
+    _rehearseOnce();
     _tapReset?.cancel();
     _taps += 1;
     if (_taps < 3) {
@@ -53,6 +63,21 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
 
   void _resetTaps() => _taps = 0;
 
+  void _rehearseOnce() {
+    if (_rehearsed) {
+      return;
+    }
+    _rehearsed = true;
+    setState(() => _rehearsing = true);
+    WidgetsBinding.instance.addPostFrameCallback(_endRehearsal);
+  }
+
+  void _endRehearsal(Duration _) {
+    if (mounted) {
+      setState(() => _rehearsing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(animation: _controller, builder: _buildStage);
@@ -61,30 +86,56 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
   Widget _buildStage(BuildContext context, Widget? child) {
     final playing = _controller.isAnimating;
     final pose = playing ? _Choreography.at(_controller.value * _Choreography.beats) : _Pose.still;
-    final colors = Theme.of(context).colorScheme;
-    final outline = colors.onSurface.withValues(alpha: 0.35);
-    final shadow = colors.shadow.withValues(alpha: 0.3);
 
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
-        _buildLayer(playing ? _FeltMouthPainter(pose: pose, front: false, outline: outline, shadow: shadow) : null),
-        Opacity(
-          opacity: pose.textOpacity,
-          child: Transform.scale(
-            scale: pose.textScale,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              excludeFromSemantics: true,
-              onTap: _onTap,
-              child: Text(widget.version, style: _textStyle(context, pose)),
-            ),
-          ),
-        ),
-        _buildLayer(playing ? _FeltMouthPainter(pose: pose, front: true, outline: outline, shadow: shadow) : null),
+        ..._buildPose(context, pose, mouth: playing, onTap: _onTap),
+        if (_rehearsing) Positioned.fill(child: _buildRehearsal(context)),
       ],
     );
+  }
+
+  Widget _buildRehearsal(BuildContext context) {
+    return IgnorePointer(
+      child: ExcludeSemantics(
+        child: Opacity(
+          opacity: _rehearsalOpacity,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              for (var beat = _rehearsalBeatStep / 2; beat < _Choreography.beats; beat += _rehearsalBeatStep)
+                ..._buildPose(context, _Choreography.at(beat), mouth: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildPose(BuildContext context, _Pose pose, {required bool mouth, VoidCallback? onTap}) {
+    final colors = Theme.of(context).colorScheme;
+    final outline = colors.onSurface.withValues(alpha: 0.35);
+    final shadow = colors.shadow.withValues(alpha: 0.3);
+
+    return [
+      _buildLayer(mouth ? _FeltMouthPainter(pose: pose, front: false, outline: outline, shadow: shadow) : null),
+      Opacity(
+        opacity: pose.textOpacity,
+        child: Transform.scale(
+          scale: pose.textScale,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            onTap: onTap,
+            child: Text(widget.version, style: _textStyle(context, pose)),
+          ),
+        ),
+      ),
+      _buildLayer(mouth ? _FeltMouthPainter(pose: pose, front: true, outline: outline, shadow: shadow) : null),
+    ];
   }
 
   TextStyle? _textStyle(BuildContext context, _Pose pose) {

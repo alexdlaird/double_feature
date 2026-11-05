@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: MIT
  */
 
-export 'src/version_label.dart';
+export 'src/version_label.dart' show VersionLabel;

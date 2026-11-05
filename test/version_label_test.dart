@@ -5,6 +5,7 @@
  */
 
 import 'package:double_feature/double_feature.dart';
+import 'package:double_feature/src/version_label.dart' show debugArmRehearsal;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,7 +25,7 @@ void main() {
 
   Future<void> tap(WidgetTester tester, {int times = 1, Duration between = const Duration(milliseconds: 100)}) async {
     for (var i = 0; i < times; i++) {
-      await tester.tap(find.text(_version));
+      await tester.tap(find.text(_version).first);
       await tester.pump(between);
     }
   }
@@ -32,6 +33,11 @@ void main() {
   Finder playing() => find.descendant(
     of: find.byType(VersionLabel),
     matching: find.byWidgetPredicate((widget) => widget is CustomPaint && widget.painter != null),
+  );
+
+  Finder rehearsal() => find.descendant(
+    of: find.byType(VersionLabel),
+    matching: find.byWidgetPredicate((widget) => widget is Opacity && widget.opacity == 1 / 255),
   );
 
   double versionOpacity(WidgetTester tester) =>
@@ -127,6 +133,73 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(playing(), findsNothing);
     }
+  });
+
+  testWidgets('test_first_tap_rehearses_for_one_invisible_frame', (tester) async {
+    // GIVEN
+    debugArmRehearsal();
+    await pumpLabel(tester);
+
+    // WHEN
+    await tap(tester);
+
+    // THEN
+    expect(rehearsal(), findsOneWidget, reason: 'rehearsing on the first tap');
+    expect(
+      find.ancestor(of: rehearsal(), matching: find.byType(IgnorePointer)),
+      findsWidgets,
+      reason: 'the rehearsal cannot take taps',
+    );
+    expect(find.text(_version), findsWidgets);
+    await tester.pump();
+    expect(rehearsal(), findsNothing, reason: 'gone after one frame');
+    expect(playing(), findsNothing, reason: 'a rehearsal is not a show');
+    expect(find.text(_version), findsOneWidget);
+  });
+
+  testWidgets('test_rehearsal_happens_once', (tester) async {
+    // GIVEN
+    debugArmRehearsal();
+    await pumpLabel(tester);
+    await tap(tester);
+    await tester.pump(const Duration(seconds: 1));
+
+    // WHEN
+    await tap(tester);
+
+    // THEN
+    expect(rehearsal(), findsNothing);
+  });
+
+  testWidgets('test_rehearsal_does_not_delay_the_show', (tester) async {
+    // GIVEN
+    debugArmRehearsal();
+    await pumpLabel(tester);
+
+    // WHEN
+    await tap(tester, times: 3);
+
+    // THEN
+    expect(rehearsal(), findsNothing);
+    expect(playing(), findsWidgets);
+    await tester.pump(const Duration(milliseconds: 5300));
+    expect(playing(), findsNothing, reason: 'finished');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('test_rehearsal_is_hidden_from_screen_readers', (tester) async {
+    // GIVEN
+    final semantics = tester.ensureSemantics();
+    debugArmRehearsal();
+    await pumpLabel(tester);
+
+    // WHEN
+    await tap(tester);
+
+    // THEN
+    expect(rehearsal(), findsOneWidget);
+    expect(find.bySemanticsLabel(_version), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('test_screen_readers_see_plain_text', (tester) async {
