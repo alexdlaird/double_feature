@@ -6,6 +6,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased](https://github.com/alexdlaird/double_feature/compare/2.0.0...HEAD)
 
+- Not for very much longer.
+
 ## [2.0.0](https://github.com/alexdlaird/double_feature/compare/1.1.0...2.0.0) - 2026-11-07
 
 - But listen closely.
