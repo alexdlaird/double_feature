@@ -20,7 +20,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: release-${{ github.repository }}
+  group: release
 
 jobs:
   release:

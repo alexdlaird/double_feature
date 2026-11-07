@@ -7,21 +7,80 @@
 import 'package:double_feature/double_feature.dart';
 import 'package:double_feature/src/version_label.dart' show debugArmRehearsal;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:url_launcher_platform_interface/link.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 const _version = 'v1.2.3';
+const _credit = 'App by Kermit';
+const _sourceLink = 'Open Source on GitHub';
+final _repository = Uri.parse('https://github.com/example/app');
+
+class _FakeLauncher extends Fake with MockPlatformInterfaceMixin implements UrlLauncherPlatform {
+  _FakeLauncher({this.fails = false});
+
+  final bool fails;
+  final List<(String, PreferredLaunchMode)> opened = [];
+
+  @override
+  LinkDelegate? get linkDelegate => null;
+
+  @override
+  Future<bool> launchUrl(String url, LaunchOptions options) async {
+    if (fails) {
+      throw PlatformException(code: 'ACTIVITY_NOT_FOUND');
+    }
+    opened.add((url, options.mode));
+    return true;
+  }
+}
 
 void main() {
-  Future<void> pumpLabel(WidgetTester tester, {ThemeData? theme}) async {
+  Future<void> pumpLabel(
+    WidgetTester tester, {
+    ThemeData? theme,
+    String? author,
+    Uri? repository,
+    bool divider = true,
+    double spacing = VersionLabel.defaultSpacing,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
-        home: const Scaffold(
-          body: Center(child: VersionLabel(version: _version)),
+        home: Scaffold(
+          body: Center(
+            child: VersionLabel(
+              version: _version,
+              author: author,
+              repository: repository,
+              divider: divider,
+              spacing: spacing,
+            ),
+          ),
         ),
       ),
     );
   }
+
+  Finder divider() => find.descendant(of: find.byType(VersionLabel), matching: find.byType(Divider));
+
+  double inkInset(WidgetTester tester, String text) {
+    final lineHeight = tester.getSize(find.text(text)).height;
+    final fontSize = DefaultTextStyle.of(tester.element(find.text(text))).style.fontSize!;
+    return (lineHeight - 0.7 * fontSize) / 2;
+  }
+
+  double inkTop(WidgetTester tester, String text) => tester.getTopLeft(find.text(text)).dy + inkInset(tester, text);
+
+  double inkBottom(WidgetTester tester, String text) =>
+      tester.getBottomLeft(find.text(text)).dy - inkInset(tester, text);
+
+  double gapBetween(WidgetTester tester, String upper, String lower) =>
+      inkTop(tester, lower) - inkBottom(tester, upper);
+
+  double lineToVersion(WidgetTester tester) => inkTop(tester, _version) - tester.getBottomLeft(divider()).dy;
 
   Future<void> tap(WidgetTester tester, {int times = 1, Duration between = const Duration(milliseconds: 100)}) async {
     for (var i = 0; i < times; i++) {
@@ -212,5 +271,145 @@ void main() {
     // THEN
     expect(tester.getSemantics(find.text(_version)), isNot(matchesSemantics(hasTapAction: true)));
     semantics.dispose();
+  });
+
+  testWidgets('test_without_author_or_repository_shows_only_the_version', (tester) async {
+    // WHEN
+    await pumpLabel(tester);
+
+    // THEN
+    expect(find.textContaining('App by'), findsNothing);
+    expect(find.text(_sourceLink), findsNothing);
+    expect(find.text(_version), findsOneWidget);
+  });
+
+  testWidgets('test_author_adds_a_credit_row_spaced_like_the_version', (tester) async {
+    // WHEN
+    await pumpLabel(tester, author: 'Kermit');
+
+    // THEN
+    expect(find.text(_credit), findsOneWidget);
+    expect(gapBetween(tester, _version, _credit), moreOrLessEquals(VersionLabel.defaultSpacing, epsilon: 0.5));
+  });
+
+  testWidgets('test_repository_adds_a_link_row_that_opens_it', (tester) async {
+    // GIVEN
+    final launcher = _FakeLauncher();
+    UrlLauncherPlatform.instance = launcher;
+    await pumpLabel(tester, repository: _repository);
+
+    // WHEN
+    await tester.tap(find.text(_sourceLink));
+    await tester.pump();
+
+    // THEN
+    expect(launcher.opened, [
+      (_repository.toString(), PreferredLaunchMode.platformDefault),
+    ], reason: "the platform's usual way for a web link");
+    expect(
+      gapBetween(tester, _version, _sourceLink),
+      moreOrLessEquals(VersionLabel.defaultSpacing, epsilon: 0.5),
+      reason: 'spaced like the credit row',
+    );
+  });
+
+  testWidgets('test_tapping_the_version_row_above_the_text_counts', (tester) async {
+    // GIVEN
+    await pumpLabel(tester, author: 'Kermit');
+    final above = tester.getTopLeft(find.text(_version)) + const Offset(2, -8);
+
+    // WHEN
+    for (var i = 0; i < 3; i++) {
+      await tester.tapAt(above);
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // THEN
+    expect(playing(), findsWidgets, reason: 'the whole row takes the taps, not just the text');
+  });
+
+  testWidgets('test_tapping_the_credit_does_not_count_toward_the_show', (tester) async {
+    // GIVEN
+    await pumpLabel(tester, author: 'Kermit');
+
+    // WHEN
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text(_credit));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // THEN
+    expect(playing(), findsNothing);
+  });
+
+  testWidgets('test_a_short_divider_sits_above_the_version', (tester) async {
+    // WHEN
+    await pumpLabel(tester, author: 'Kermit');
+
+    // THEN
+    expect(divider(), findsOneWidget);
+    expect(
+      tester.getBottomLeft(divider()).dy,
+      lessThan(tester.getTopLeft(find.text(_version)).dy),
+      reason: 'above the version',
+    );
+    expect(
+      tester.getSize(divider()).width,
+      lessThan(tester.getSize(find.byType(Scaffold)).width / 2),
+      reason: 'a short rule, not a full-width line',
+    );
+  });
+
+  testWidgets('test_spacing_is_the_same_above_the_line_below_it_and_between_the_rows', (tester) async {
+    // WHEN
+    await pumpLabel(tester, author: 'Kermit');
+
+    // THEN
+    final aboveLine = tester.getTopLeft(divider()).dy - tester.getTopLeft(find.byType(VersionLabel)).dy;
+    expect(aboveLine, VersionLabel.defaultSpacing);
+    expect(lineToVersion(tester), moreOrLessEquals(aboveLine, epsilon: 0.5), reason: 'line to version');
+    expect(
+      gapBetween(tester, _version, _credit),
+      moreOrLessEquals(aboveLine, epsilon: 0.5),
+      reason: 'version to credit',
+    );
+  });
+
+  testWidgets('test_the_divider_can_be_turned_off', (tester) async {
+    // WHEN
+    await pumpLabel(tester, author: 'Kermit', divider: false);
+
+    // THEN
+    expect(divider(), findsNothing);
+    expect(find.text(_version), findsOneWidget);
+    expect(
+      inkTop(tester, _version) - tester.getTopLeft(find.byType(VersionLabel)).dy,
+      moreOrLessEquals(VersionLabel.defaultSpacing / 2, epsilon: 0.5),
+      reason: 'the version row keeps its own half of the spacing',
+    );
+  });
+
+  testWidgets('test_a_passed_spacing_sets_every_gap', (tester) async {
+    // WHEN
+    await pumpLabel(tester, author: 'Kermit', spacing: 40);
+
+    // THEN
+    expect(tester.getTopLeft(divider()).dy - tester.getTopLeft(find.byType(VersionLabel)).dy, 40);
+    expect(lineToVersion(tester), moreOrLessEquals(40, epsilon: 0.5));
+    expect(gapBetween(tester, _version, _credit), moreOrLessEquals(40, epsilon: 0.5));
+  });
+
+  testWidgets('test_a_link_that_will_not_open_is_ignored', (tester) async {
+    // GIVEN
+    UrlLauncherPlatform.instance = _FakeLauncher(fails: true);
+    await pumpLabel(tester, repository: _repository);
+
+    // WHEN
+    await tester.tap(find.text(_sourceLink));
+    await tester.pump();
+
+    // THEN
+    expect(tester.takeException(), isNull);
+    expect(find.text(_sourceLink), findsOneWidget);
   });
 }

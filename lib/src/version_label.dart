@@ -9,19 +9,45 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const String muppets = 'no strings attached';
 
 @visibleForTesting
 void debugArmRehearsal() => _VersionLabelState._rehearsed = false;
 
 /// Displays a version number.
 class VersionLabel extends StatefulWidget {
-  const VersionLabel({required this.version, this.style, super.key});
+  const VersionLabel({
+    required this.version,
+    this.style,
+    this.author,
+    this.repository,
+    this.divider = true,
+    this.spacing = defaultSpacing,
+    super.key,
+  }) : assert(author == null || repository == null, 'Pass an author or a repository, not both');
 
   /// The version to display.
   final String version;
 
-  /// The style of the version text.
+  /// The style of the text.
   final TextStyle? style;
+
+  /// Shown as "App by [author]".
+  final String? author;
+
+  /// Linked as "Open Source on GitHub".
+  final Uri? repository;
+
+  /// Whether a divider shows above the version.
+  final bool divider;
+
+  /// The space between each element.
+  final double spacing;
+
+  static const double defaultSpacing = 20;
 
   @override
   State<VersionLabel> createState() => _VersionLabelState();
@@ -32,6 +58,9 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
   static const Color _textInMouth = Color(0xFFF4F1FF);
   static const double _rehearsalOpacity = 1 / 255;
   static const double _rehearsalBeatStep = 0.2;
+
+  static const double _dividerWidth = 64;
+  static const double _capHeight = 0.7;
 
   static bool _rehearsed = !kIsWeb;
 
@@ -80,7 +109,82 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(animation: _controller, builder: _buildStage);
+    final rowPadding = math.max(0.0, widget.spacing / 2 - _textInset(context));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.divider) _buildDivider(),
+        _buildVersionRow(rowPadding),
+        if (widget.author case final author?) _buildRow(Text('App by $author', style: widget.style), rowPadding),
+        if (widget.repository case final repository?) _buildRepositoryRow(repository, rowPadding),
+      ],
+    );
+  }
+
+  double _textInset(BuildContext context) {
+    final style = DefaultTextStyle.of(context).style.merge(widget.style);
+    final scaler = MediaQuery.textScalerOf(context);
+    final painter = TextPainter(
+      text: TextSpan(text: widget.version, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: scaler,
+    )..layout();
+    final lineHeight = painter.height;
+    painter.dispose();
+    final capHeight = _capHeight * scaler.scale(style.fontSize ?? 14);
+    return math.max(0.0, (lineHeight - capHeight) / 2);
+  }
+
+  Widget _buildDivider() {
+    return Padding(
+      padding: EdgeInsets.only(top: widget.spacing),
+      child: const SizedBox(width: _dividerWidth, child: Divider(height: 1)),
+    );
+  }
+
+  Widget _buildVersionRow(double rowPadding) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
+      onTap: _onTap,
+      child: Padding(
+        padding: EdgeInsets.only(top: widget.divider ? widget.spacing / 2 : 0),
+        child: _buildRow(AnimatedBuilder(animation: _controller, builder: _buildStage), rowPadding),
+      ),
+    );
+  }
+
+  Widget _buildRepositoryRow(Uri repository, double rowPadding) {
+    return Semantics(
+      link: true,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.symmetric(horizontal: widget.spacing / 2, vertical: rowPadding),
+          minimumSize: const Size(kMinInteractiveDimension, 0),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onPressed: () => _open(repository),
+        child: Text('Open Source on GitHub', style: widget.style),
+      ),
+    );
+  }
+
+  Widget _buildRow(Widget child, double rowPadding) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: kMinInteractiveDimension),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: rowPadding),
+        child: Align(widthFactor: 1, heightFactor: 1, child: child),
+      ),
+    );
+  }
+
+  Future<void> _open(Uri repository) async {
+    try {
+      await launchUrl(repository);
+    } on PlatformException {
+      return;
+    }
   }
 
   Widget _buildStage(BuildContext context, Widget? child) {
@@ -91,7 +195,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
       clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
-        ..._buildPose(context, pose, mouth: playing, onTap: _onTap),
+        ..._buildPose(context, pose, mouth: playing),
         if (_rehearsing) Positioned.fill(child: _buildRehearsal(context)),
       ],
     );
@@ -115,7 +219,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
     );
   }
 
-  List<Widget> _buildPose(BuildContext context, _Pose pose, {required bool mouth, VoidCallback? onTap}) {
+  List<Widget> _buildPose(BuildContext context, _Pose pose, {required bool mouth}) {
     final colors = Theme.of(context).colorScheme;
     final outline = colors.onSurface.withValues(alpha: 0.35);
     final shadow = colors.shadow.withValues(alpha: 0.3);
@@ -126,12 +230,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
         opacity: pose.textOpacity,
         child: Transform.scale(
           scale: pose.textScale,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            excludeFromSemantics: true,
-            onTap: onTap,
-            child: Text(widget.version, style: _textStyle(context, pose)),
-          ),
+          child: Text(widget.version, style: _textStyle(context, pose)),
         ),
       ),
       _buildLayer(mouth ? _FeltMouthPainter(pose: pose, front: true, outline: outline, shadow: shadow) : null),
