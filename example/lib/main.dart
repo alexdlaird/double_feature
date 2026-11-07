@@ -16,10 +16,10 @@ class ExampleApp extends StatefulWidget {
   State<ExampleApp> createState() => _ExampleAppState();
 }
 
-enum _Credit { none, author, repository }
+enum _Credit { none, author, github }
 
 class _ExampleAppState extends State<ExampleApp> {
-  static final Uri _repository = Uri.parse('https://github.com/alexdlaird/double_feature');
+  static final Uri _githubUrl = Uri.parse('https://github.com/alexdlaird/double_feature');
 
   bool _dark = false;
   _Credit _credit = _Credit.none;
@@ -47,7 +47,7 @@ class _ExampleAppState extends State<ExampleApp> {
                 segments: const [
                   ButtonSegment(value: _Credit.none, label: Text('None')),
                   ButtonSegment(value: _Credit.author, label: Text('Author')),
-                  ButtonSegment(value: _Credit.repository, label: Text('GitHub')),
+                  ButtonSegment(value: _Credit.github, label: Text('GitHub')),
                 ],
                 selected: {_credit},
                 showSelectedIcon: false,
@@ -58,7 +58,7 @@ class _ExampleAppState extends State<ExampleApp> {
               child: VersionLabel(
                 version: 'v1.0.0',
                 author: _credit == _Credit.author ? 'Dr. Frank-N-Furter' : null,
-                repository: _credit == _Credit.repository ? _repository : null,
+                githubUrl: _credit == _Credit.github ? _githubUrl : null,
               ),
             ),
           ],

@@ -23,11 +23,12 @@ class VersionLabel extends StatefulWidget {
     required this.version,
     this.style,
     this.author,
-    this.repository,
+    this.githubUrl,
+    this.onGithubUrlError,
     this.divider = true,
     this.spacing = defaultSpacing,
     super.key,
-  }) : assert(author == null || repository == null, 'Pass an author or a repository, not both');
+  }) : assert(author == null || githubUrl == null, 'Pass an author or a githubUrl, not both');
 
   /// The version to display.
   final String version;
@@ -39,7 +40,10 @@ class VersionLabel extends StatefulWidget {
   final String? author;
 
   /// Linked as "Open Source on GitHub".
-  final Uri? repository;
+  final Uri? githubUrl;
+
+  /// Called when [githubUrl] can't be opened.
+  final VoidCallback? onGithubUrlError;
 
   /// Whether a divider shows above the version.
   final bool divider;
@@ -116,7 +120,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
         if (widget.divider) _buildDivider(),
         _buildVersionRow(rowPadding),
         if (widget.author case final author?) _buildRow(Text('App by $author', style: widget.style), rowPadding),
-        if (widget.repository case final repository?) _buildRepositoryRow(repository, rowPadding),
+        if (widget.githubUrl case final githubUrl?) _buildGithubRow(githubUrl, rowPadding),
       ],
     );
   }
@@ -154,7 +158,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildRepositoryRow(Uri repository, double rowPadding) {
+  Widget _buildGithubRow(Uri githubUrl, double rowPadding) {
     return Semantics(
       link: true,
       child: TextButton(
@@ -163,7 +167,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
           minimumSize: const Size(kMinInteractiveDimension, 0),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        onPressed: () => _open(repository),
+        onPressed: () => _open(githubUrl),
         child: Text('Open Source on GitHub', style: widget.style),
       ),
     );
@@ -179,11 +183,17 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
     );
   }
 
-  Future<void> _open(Uri repository) async {
+  Future<void> _open(Uri githubUrl) async {
+    if (!await _launch(githubUrl)) {
+      widget.onGithubUrlError?.call();
+    }
+  }
+
+  Future<bool> _launch(Uri url) async {
     try {
-      await launchUrl(repository);
+      return await launchUrl(url);
     } on PlatformException {
-      return;
+      return false;
     }
   }
 

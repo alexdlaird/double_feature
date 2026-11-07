@@ -16,12 +16,13 @@ import 'package:url_launcher_platform_interface/url_launcher_platform_interface.
 const _version = 'v1.2.3';
 const _credit = 'App by Kermit';
 const _sourceLink = 'Open Source on GitHub';
-final _repository = Uri.parse('https://github.com/example/app');
+final _githubUrl = Uri.parse('https://github.com/example/app');
 
 class _FakeLauncher extends Fake with MockPlatformInterfaceMixin implements UrlLauncherPlatform {
-  _FakeLauncher({this.fails = false});
+  _FakeLauncher({this.fails = false, this.opens = true});
 
   final bool fails;
+  final bool opens;
   final List<(String, PreferredLaunchMode)> opened = [];
 
   @override
@@ -33,7 +34,7 @@ class _FakeLauncher extends Fake with MockPlatformInterfaceMixin implements UrlL
       throw PlatformException(code: 'ACTIVITY_NOT_FOUND');
     }
     opened.add((url, options.mode));
-    return true;
+    return opens;
   }
 }
 
@@ -42,8 +43,9 @@ void main() {
     WidgetTester tester, {
     ThemeData? theme,
     String? author,
-    Uri? repository,
+    Uri? githubUrl,
     bool divider = true,
+    VoidCallback? onGithubUrlError,
     double spacing = VersionLabel.defaultSpacing,
   }) async {
     await tester.pumpWidget(
@@ -54,7 +56,8 @@ void main() {
             child: VersionLabel(
               version: _version,
               author: author,
-              repository: repository,
+              githubUrl: githubUrl,
+              onGithubUrlError: onGithubUrlError,
               divider: divider,
               spacing: spacing,
             ),
@@ -273,7 +276,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('test_without_author_or_repository_shows_only_the_version', (tester) async {
+  testWidgets('test_without_author_or_github_url_shows_only_the_version', (tester) async {
     // WHEN
     await pumpLabel(tester);
 
@@ -292,11 +295,11 @@ void main() {
     expect(gapBetween(tester, _version, _credit), moreOrLessEquals(VersionLabel.defaultSpacing, epsilon: 0.5));
   });
 
-  testWidgets('test_repository_adds_a_link_row_that_opens_it', (tester) async {
+  testWidgets('test_github_url_adds_a_link_row_that_opens_it', (tester) async {
     // GIVEN
     final launcher = _FakeLauncher();
     UrlLauncherPlatform.instance = launcher;
-    await pumpLabel(tester, repository: _repository);
+    await pumpLabel(tester, githubUrl: _githubUrl);
 
     // WHEN
     await tester.tap(find.text(_sourceLink));
@@ -304,7 +307,7 @@ void main() {
 
     // THEN
     expect(launcher.opened, [
-      (_repository.toString(), PreferredLaunchMode.platformDefault),
+      (_githubUrl.toString(), PreferredLaunchMode.platformDefault),
     ], reason: "the platform's usual way for a web link");
     expect(
       gapBetween(tester, _version, _sourceLink),
@@ -402,7 +405,7 @@ void main() {
   testWidgets('test_a_link_that_will_not_open_is_ignored', (tester) async {
     // GIVEN
     UrlLauncherPlatform.instance = _FakeLauncher(fails: true);
-    await pumpLabel(tester, repository: _repository);
+    await pumpLabel(tester, githubUrl: _githubUrl);
 
     // WHEN
     await tester.tap(find.text(_sourceLink));
@@ -411,5 +414,36 @@ void main() {
     // THEN
     expect(tester.takeException(), isNull);
     expect(find.text(_sourceLink), findsOneWidget);
+  });
+
+  testWidgets('test_a_link_that_will_not_open_calls_on_github_url_error', (tester) async {
+    for (final launcher in [_FakeLauncher(fails: true), _FakeLauncher(opens: false)]) {
+      // GIVEN
+      UrlLauncherPlatform.instance = launcher;
+      var errors = 0;
+      await pumpLabel(tester, githubUrl: _githubUrl, onGithubUrlError: () => errors++);
+
+      // WHEN
+      await tester.tap(find.text(_sourceLink));
+      await tester.pump();
+
+      // THEN
+      expect(errors, 1, reason: 'thrown or refused, the app hears about it once');
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('test_a_link_that_opens_does_not_call_on_github_url_error', (tester) async {
+    // GIVEN
+    UrlLauncherPlatform.instance = _FakeLauncher();
+    var errors = 0;
+    await pumpLabel(tester, githubUrl: _githubUrl, onGithubUrlError: () => errors++);
+
+    // WHEN
+    await tester.tap(find.text(_sourceLink));
+    await tester.pump();
+
+    // THEN
+    expect(errors, 0);
   });
 }
