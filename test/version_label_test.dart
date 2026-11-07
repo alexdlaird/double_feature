@@ -83,6 +83,9 @@ void main() {
   double gapBetween(WidgetTester tester, String upper, String lower) =>
       inkTop(tester, lower) - inkBottom(tester, upper);
 
+  double belowInk(WidgetTester tester, String text) =>
+      tester.getBottomLeft(find.byType(VersionLabel)).dy - inkBottom(tester, text);
+
   double lineToVersion(WidgetTester tester) => inkTop(tester, _version) - tester.getBottomLeft(divider()).dy;
 
   Future<void> tap(WidgetTester tester, {int times = 1, Duration between = const Duration(milliseconds: 100)}) async {
@@ -387,8 +390,8 @@ void main() {
     expect(find.text(_version), findsOneWidget);
     expect(
       inkTop(tester, _version) - tester.getTopLeft(find.byType(VersionLabel)).dy,
-      moreOrLessEquals(VersionLabel.defaultSpacing / 2, epsilon: 0.5),
-      reason: 'the version row keeps its own half of the spacing',
+      moreOrLessEquals(VersionLabel.defaultSpacing, epsilon: 0.5),
+      reason: 'the full spacing above the version, as with the divider',
     );
   });
 
@@ -400,6 +403,7 @@ void main() {
     expect(tester.getTopLeft(divider()).dy - tester.getTopLeft(find.byType(VersionLabel)).dy, 40);
     expect(lineToVersion(tester), moreOrLessEquals(40, epsilon: 0.5));
     expect(gapBetween(tester, _version, _credit), moreOrLessEquals(40, epsilon: 0.5));
+    expect(belowInk(tester, _credit), moreOrLessEquals(40, epsilon: 0.5));
   });
 
   testWidgets('test_a_link_that_will_not_open_is_ignored', (tester) async {
@@ -445,5 +449,19 @@ void main() {
 
     // THEN
     expect(errors, 0);
+  });
+
+  testWidgets('test_the_space_below_the_last_row_matches_the_spacing', (tester) async {
+    for (final (author, last) in [(null, _version), ('Kermit', _credit)]) {
+      // WHEN
+      await pumpLabel(tester, author: author);
+
+      // THEN
+      expect(
+        belowInk(tester, last),
+        moreOrLessEquals(VersionLabel.defaultSpacing, epsilon: 0.5),
+        reason: 'below "$last", as above the line',
+      );
+    }
   });
 }

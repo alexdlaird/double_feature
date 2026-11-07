@@ -48,7 +48,7 @@ class VersionLabel extends StatefulWidget {
   /// Whether a divider shows above the version.
   final bool divider;
 
-  /// The space between each element.
+  /// The space between each element, and around them.
   final double spacing;
 
   static const double defaultSpacing = 20;
@@ -114,14 +114,17 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final rowPadding = math.max(0.0, widget.spacing / 2 - _textInset(context));
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.divider) _buildDivider(),
-        _buildVersionRow(rowPadding),
-        if (widget.author case final author?) _buildRow(Text('App by $author', style: widget.style), rowPadding),
-        if (widget.githubUrl case final githubUrl?) _buildGithubRow(githubUrl, rowPadding),
-      ],
+    return Padding(
+      padding: EdgeInsets.only(bottom: widget.spacing / 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.divider) _buildDivider(),
+          _buildVersionRow(rowPadding),
+          if (widget.author case final author?) _buildRow(Text('App by $author', style: widget.style), rowPadding),
+          if (widget.githubUrl case final githubUrl?) _buildGithubRow(githubUrl, rowPadding),
+        ],
+      ),
     );
   }
 
@@ -152,7 +155,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
       excludeFromSemantics: true,
       onTap: _onTap,
       child: Padding(
-        padding: EdgeInsets.only(top: widget.divider ? widget.spacing / 2 : 0),
+        padding: EdgeInsets.only(top: widget.spacing / 2),
         child: _buildRow(AnimatedBuilder(animation: _controller, builder: _buildStage), rowPadding),
       ),
     );
