@@ -24,6 +24,7 @@ class VersionLabel extends StatefulWidget {
     this.style,
     this.author,
     this.githubUrl,
+    this.githubLabel = defaultGithubLabel,
     this.onGithubUrlError,
     this.divider = true,
     this.spacing = defaultSpacing,
@@ -39,8 +40,11 @@ class VersionLabel extends StatefulWidget {
   /// Shown as "App by [author]".
   final String? author;
 
-  /// Linked as "Open Source on GitHub".
+  /// Linked as [githubLabel].
   final Uri? githubUrl;
+
+  /// The text of the [githubUrl] link.
+  final String githubLabel;
 
   /// Called when [githubUrl] can't be opened.
   final VoidCallback? onGithubUrlError;
@@ -52,6 +56,8 @@ class VersionLabel extends StatefulWidget {
   final double spacing;
 
   static const double defaultSpacing = 20;
+
+  static const String defaultGithubLabel = 'Open Source on GitHub';
 
   @override
   State<VersionLabel> createState() => _VersionLabelState();
@@ -171,7 +177,7 @@ class _VersionLabelState extends State<VersionLabel> with SingleTickerProviderSt
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         onPressed: () => _open(githubUrl),
-        child: Text('Open Source on GitHub', style: widget.style),
+        child: Text(widget.githubLabel, style: widget.style),
       ),
     );
   }
